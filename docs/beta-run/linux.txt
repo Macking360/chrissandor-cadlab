@@ -1,0 +1,209 @@
+ChrisSandor CADLab beta scenario
+platform: Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39 | python 3.12.3
+
+### version
+$ cadlab --version
+ChrisSandor CADLab 6.1.0b1
+[exit 0, expected 0] OK
+
+### diagnostics
+$ cadlab diagnostics
+
+============================================================================
+  SYSTEM DIAGNOSTICS
+============================================================================
+application: ChrisSandor CADLab 6.1.0b1
+python: 3.12.3
+os: Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39
+architecture: x86_64
+platform: Linux under WSL
+flags:
+  windows: False
+  macos: False
+  termux: False
+  wsl: True
+data directory: <data>
+free disk mib: 975099
+openssl: /usr/bin/openssl
+proot distro: not applicable or not found
+cryptography: 50.0
+sqlite: 3.45.1
+root ca: False
+intermediate ca: False
+private key folder: mode 700 (owner only)
+audit trail:
+  ok: True
+  records: 0
+  problem: None
+[exit 0, expected 0] OK
+
+### create root CA
+$ cadlab pki init-root
+[+] Root CA created.
+kind: root
+subject: CN=ChrisSandor CADLab Root CA,O=ChrisSandor CADLab
+cert path: <data>/pki/ca/root-ca.pem
+key path: <data>/pki/private/root-ca-key.pem
+not after: 2036-11-03T03:09:30+00:00
+serial: 7a6be2657c36e181ba808a3124f9c1f042565955
+[exit 0, expected 0] OK
+
+### create intermediate CA
+$ cadlab pki init-intermediate
+[+] Intermediate CA created.
+kind: intermediate
+subject: CN=ChrisSandor CADLab Issuing CA,O=ChrisSandor CADLab
+cert path: <data>/pki/ca/intermediate-ca.pem
+key path: <data>/pki/private/intermediate-ca-key.pem
+not after: 2031-11-05T03:09:31+00:00
+serial: 77869969181891ef0b83459060dc7fb242493622
+[exit 0, expected 0] OK
+
+### issue a TLS server certificate
+$ cadlab pki issue server --cn demo.test --san demo.test
+[+] Issued server certificate. Serial: 78d64342f43d4b33ec517477f412ea14cd752b02
+serial: 78d64342f43d4b33ec517477f412ea14cd752b02
+kind: server
+common name: demo.test
+cert path: <data>/pki/issued/server-demo.test-78d64342f43d.pem
+chain path: <data>/pki/issued/server-demo.test-78d64342f43d-chain.pem
+key path: <data>/pki/private/server-demo.test-78d64342f43d-key.pem
+not after: 2027-12-08T03:09:32+00:00
+sans: demo.test
+[exit 0, expected 0] OK
+
+### create a signing identity (key + CSR)
+$ cadlab identity create beta-signer
+[+] Identity beta-signer created.
+name: beta-signer
+algorithm: ec
+csr path: <data>/pki/identities/beta-signer/csr.pem
+key path: <data>/pki/identities/beta-signer/key.pem
+subject: CN=beta-signer,O=ChrisSandor CADLab
+Send csr_path to your authority, for example:
+  crystalline-pki issue-csr <data>/pki/identities/beta-signer/csr.pem --name beta-signer
+[exit 0, expected 0] OK
+
+### sign the CSR with the lab intermediate
+$ cadlab --json pki sign-csr <data>/pki/identities/beta-signer/csr.pem --kind client
+{
+  "serial": "1109595c565da502e8ce99f452cf832f82ac363b",
+  "kind": "client",
+  "common_name": "beta-signer",
+  "cert_path": "<data>/pki/issued/client-beta-signer-1109595c565d.pem",
+  "chain_path": "<data>/pki/issued/client-beta-signer-1109595c565d-chain.pem",
+  "key_path": null,
+  "not_after": "2027-12-08T03:09:33+00:00",
+  "sans": []
+}
+[exit 0, expected 0] OK
+
+### import the issued certificate
+$ cadlab identity import beta-signer <data>/pki/issued/client-beta-signer-1109595c565d.pem --chain <data>/pki/issued/client-beta-signer-1109595c565d-chain.pem
+[+] Certificate attached to identity beta-signer.
+name: beta-signer
+subject: CN=beta-signer,O=ChrisSandor CADLab
+issuer: CN=ChrisSandor CADLab Issuing CA,O=ChrisSandor CADLab
+not after: 2027-12-08T03:09:33+00:00
+intermediates: 1
+[exit 0, expected 0] OK
+
+### create a project
+$ cadlab project create bracket
+[+] Project created: <data>/projects/bracket
+[exit 0, expected 0] OK
+
+### add a box
+$ cadlab project part bracket box base --size 40 20 10
+[+] Part base written: parts/base.stl
+  volume: 8000.0000
+[exit 0, expected 0] OK
+
+### add a drilled plate
+$ cadlab project part bracket plate cover --size 60 30 --hole 10 10 5
+[+] Part cover written: parts/cover.dxf, parts/cover.svg
+  area: 1780.3650
+[exit 0, expected 0] OK
+
+### add a cylinder
+$ cadlab project part bracket cylinder pin --size 3 12 --segments 32
+[+] Part pin written: parts/pin.stl
+  volume: 337.1161
+[exit 0, expected 0] OK
+
+### seal the project
+$ cadlab project seal bracket --identity beta-signer
+[+] Sealed 7 files in bracket.
+project: bracket
+files: 7
+signer: CN=beta-signer,O=ChrisSandor CADLab
+algorithm: ecdsa-sha256
+manifest sha256: dcd96685c4f3212d052e01b70da7441b302137b973592b52c7f421dc6089fc0e
+seal dir: <data>/projects/bracket/.cadlab-seal
+[exit 0, expected 0] OK
+
+### verify an untouched project
+$ cadlab project verify bracket
+[+] bracket: INTACT
+  signer:        CN=beta-signer,O=ChrisSandor CADLab
+  signature:     valid
+  signer chain:  CN=beta-signer,O=ChrisSandor CADLab -> CN=ChrisSandor CADLab Issuing CA,O=ChrisSandor CADLab -> CN=ChrisSandor CADLab Root CA,O=ChrisSandor CADLab
+  files checked: 7
+[!] no revocation list was supplied for the leaf's issuer, so revocation was not checked
+[exit 0, expected 0] OK
+
+### verify after a file was altered (must be detected)
+$ cadlab project verify bracket
+[-] bracket: MODIFIED  - NOT TRUSTED
+  signer:        CN=beta-signer,O=ChrisSandor CADLab
+  signature:     valid
+  signer chain:  CN=beta-signer,O=ChrisSandor CADLab -> CN=ChrisSandor CADLab Issuing CA,O=ChrisSandor CADLab -> CN=ChrisSandor CADLab Root CA,O=ChrisSandor CADLab
+  files checked: 7
+  modified: parts/base.stl
+[!] no revocation list was supplied for the leaf's issuer, so revocation was not checked
+[exit 2, expected 2] OK
+
+### revoke the signer
+$ cadlab pki revoke 1109595c565da502e8ce99f452cf832f82ac363b --reason key_compromise
+[+] Revocation recorded. Generate a fresh CRL and distribute it to relying systems.
+[exit 0, expected 0] OK
+
+### publish the revocation list
+$ cadlab pki crl
+[+] CRL #1 written: <data>/pki/crl/intermediate-ca.crl.pem (1 revoked)
+[exit 0, expected 0] OK
+
+### check the audit trail
+$ cadlab pki audit-verify
+[+] Audit trail intact: 12 records.
+  head hash: 0bf6c10642e48b268a272a9d0c4290eeacbd6034db30c366de36265ba9b31e47  (record this somewhere else to detect truncation)
+[exit 0, expected 0] OK
+
+### create a backup
+$ cadlab backup create
+[+] Backup created: <data>/backups/cadlab-backup-20261106-030938.tar.gz
+[!] Backup contains encrypted keys and sensitive metadata. Store it securely.
+[exit 0, expected 0] OK
+
+### verify the backup
+$ cadlab backup verify
+cadlab-backup-20261106-030938.tar.gz: OK
+[exit 0, expected 0] OK
+
+### maintenance
+$ cadlab maintenance
+
+============================================================================
+  MAINTENANCE
+============================================================================
+Database integrity: ok
+logs: 2 files
+backups: 2 files
+issued: 4 files
+private: 3 files
+Audit trail: intact (13 records)
+No certificates, keys, backups or logs were deleted.
+[+] Maintenance check completed.
+[exit 0, expected 0] OK
+
+RESULT: all steps behaved as expected

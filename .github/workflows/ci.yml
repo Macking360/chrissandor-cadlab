@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    name: tests (${{ matrix.os }}, py${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest
+      - run: python -m pytest -q --ignore=tests/interop
+      - name: Beta scenario transcript
+        run: python scripts/beta_scenario.py
+
+  interop:
+    name: interop with crystalline-pki and OverWatch
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/checkout@v4
+        with:
+          repository: Macking360/overwatch
+          path: overwatch-src
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e . pytest "git+https://github.com/Macking360/crystalline-pki"
+      - run: python -m pip install -r overwatch-src/requirements.txt
+      - name: Interop tests
+        env:
+          OVERWATCH_DIR: ${{ github.workspace }}/overwatch-src
+        run: python -m pytest -q tests/interop

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+.cadlab/
+*.p12
+*.pfx
+*-key.pem
+key.pem
